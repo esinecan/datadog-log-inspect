@@ -1,0 +1,6 @@
+#!/usr/bin/env python3
+"""Wrapper script for dd-cli."""
+from dd_cli.cli import main
+
+if __name__ == "__main__":
+    main()
