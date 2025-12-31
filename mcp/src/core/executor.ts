@@ -42,7 +42,16 @@ export async function checkDdCli(): Promise<{ available: boolean; error?: string
  * Execute a dd-cli command and return raw stdout
  */
 export async function execDdCli(args: string[]): Promise<string> {
-    const command = `python3 ${DD_CLI_PATH} ${args.join(" ")}`;
+    // Shell-quote each argument to handle spaces
+    const quotedArgs = args.map(arg => {
+        // If arg contains spaces or special chars, quote it
+        if (/[\s"'$`\\]/.test(arg)) {
+            // Escape single quotes and wrap in single quotes
+            return `'${arg.replace(/'/g, "'\\''")}'`;
+        }
+        return arg;
+    });
+    const command = `python3 ${DD_CLI_PATH} ${quotedArgs.join(" ")}`;
 
     if (DEBUG) {
         console.error(`[datadog-mcp] Executing: ${command}`);

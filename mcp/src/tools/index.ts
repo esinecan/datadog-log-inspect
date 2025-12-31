@@ -126,7 +126,7 @@ export async function handleToolCall(
             const limit = (args.limit as number) || 50;
             const result = await execDdCliJson<LogResult>([
                 "list",
-                `'${query}'`,
+                query,
                 "--hours", String(hours),
                 "--limit", String(limit),
             ]);
@@ -158,7 +158,7 @@ export async function handleToolCall(
             const limit = (args.limit as number) || 10;
             return execDdCliJson([
                 "top",
-                `'${query}'`,
+                query,
                 "--field", field,
                 "--hours", String(hours),
                 "--limit", String(limit),
