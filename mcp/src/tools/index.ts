@@ -83,16 +83,20 @@ interface LogResult {
     };
 }
 
+function simplifyLogEvent(event: Record<string, unknown>): LogEvent {
+    return {
+        timestamp: event.timestamp as string,
+        service: event.service as string,
+        status: event.status as string,
+        message: ((event.message as string) || "").substring(0, 2000),
+        trace_id: event.trace_id as string,
+        id: event.id as string,
+    };
+}
+
 function simplifyLogs(result: LogResult): { count: number; events: LogEvent[] } {
     const events = result.result?.events || [];
-    const simplified = events.map((e) => ({
-        timestamp: e.event?.timestamp,
-        service: e.event?.service,
-        status: e.event?.status,
-        message: (e.event?.message || "").substring(0, 500),
-        trace_id: e.event?.trace_id,
-        id: e.event?.id,
-    }));
+    const simplified = events.map((e) => simplifyLogEvent(e.event as any || {}));
     return { count: simplified.length, events: simplified };
 }
 
@@ -148,7 +152,12 @@ export async function handleToolCall(
 
         case "dd_fetch_log": {
             const logId = args.log_id as string;
-            return execDdCliJson(["fetch-one", logId]);
+            const result = await execDdCliJson<{ event?: Record<string, unknown> }>(["fetch-one", logId]);
+            // Simplify to essential fields
+            if (result.event) {
+                return simplifyLogEvent(result.event);
+            }
+            return result;
         }
 
         case "dd_top_values": {
