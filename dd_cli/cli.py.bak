@@ -280,24 +280,6 @@ def cmd_views_list(args):
 
 
 # =============================================================================
-# Service Topology Command Handlers
-# =============================================================================
-
-def cmd_topology_graph(args):
-    """Get full service topology graph."""
-    client = require_auth()
-    result = client.get_service_topology(args.env, args.hours)
-    emit_json(result, compact=not args.pretty)
-
-
-def cmd_topology_deps(args):
-    """Get dependencies for a specific service."""
-    client = require_auth()
-    result = client.get_service_dependencies(args.service, args.env, args.hours)
-    emit_json(result, compact=not args.pretty)
-
-
-# =============================================================================
 # CLI Parser
 # =============================================================================
 

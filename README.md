@@ -2,6 +2,52 @@
 
 Python-based CLI for querying Datadog **logs** and **RUM** using internal web UI APIs with browser session auth.
 
+## MCP Server
+
+An MCP (Model Context Protocol) server is included for AI assistant integration. The server wraps the dd-cli and exposes the following tools:
+
+### Backend Logs Tools
+| Tool | Description |
+|------|-------------|
+| `dd_auth_status` | Check Datadog authentication status |
+| `dd_search_logs` | Search backend logs with Datadog query syntax |
+| `dd_trace_logs` | Get all logs for a specific trace_id |
+| `dd_fetch_log` | Fetch full details of a single log entry |
+| `dd_top_values` | Aggregate top values for any field |
+
+### RUM (Frontend) Tools
+| Tool | Description |
+|------|-------------|
+| `dd_rum_sessions` | Query user sessions by customer ID or email |
+| `dd_rum_actions` | Query user actions (clicks, inputs, navigations) |
+| `dd_rum_errors` | Query frontend JavaScript errors |
+| `dd_rum_resources` | Query network resources (XHR, fetch, assets) |
+
+### MCP Server Setup
+
+```bash
+# Build MCP server
+cd mcp && npm install && npm run build
+
+# Run with stdio transport
+node dist/mcp/server.js
+
+# Configure in Claude Desktop / Cline settings:
+# Command: node /path/to/datadog-log-inspect/mcp/dist/mcp/server.js
+```
+
+### TODO: Field Discovery API
+
+> **⚠️ The `dd_fields_search` and `dd_fields_values` tools are currently broken (400 errors).**
+> 
+> The internal API endpoints have changed. Need to:
+> 1. Open Datadog web UI and trigger field autocomplete
+> 2. Capture the network requests from DevTools
+> 3. Reverse engineer the new payload format
+> 
+> **Workaround**: Use `dd_top_values` with the `field` parameter to discover field values.
+
+
 ## Setup
 
 ```bash

@@ -42,10 +42,10 @@ export async function checkDdCli(): Promise<{ available: boolean; error?: string
  * Execute a dd-cli command and return raw stdout
  */
 export async function execDdCli(args: string[]): Promise<string> {
-    // Shell-quote each argument to handle spaces
+    // Shell-quote each argument to handle spaces and special chars
     const quotedArgs = args.map(arg => {
-        // If arg contains spaces or special chars, quote it
-        if (/[\s"'$`\\]/.test(arg)) {
+        // If arg contains spaces, special chars, or glob chars (*?[]), quote it
+        if (/[\s"'$`\\*?[\]]/.test(arg)) {
             // Escape single quotes and wrap in single quotes
             return `'${arg.replace(/'/g, "'\\''")}'`;
         }
