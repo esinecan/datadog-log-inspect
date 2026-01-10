@@ -283,17 +283,14 @@ def cmd_views_list(args):
 # Service Topology Command Handlers
 # =============================================================================
 
-def cmd_topology_graph(args):
-    """Get full service topology graph."""
+def cmd_topology(args):
+    """Get service topology/dependency graph."""
     client = require_auth()
-    result = client.get_service_topology(args.env, args.hours)
-    emit_json(result, compact=not args.pretty)
-
-
-def cmd_topology_deps(args):
-    """Get dependencies for a specific service."""
-    client = require_auth()
-    result = client.get_service_dependencies(args.service, args.env, args.hours)
+    result = client.get_service_topology(
+        env=args.env,
+        hours=args.hours,
+        service_filter=args.service,
+    )
     emit_json(result, compact=not args.pretty)
 
 
@@ -538,6 +535,27 @@ Examples:
     p_views_list.add_argument("--limit", type=int, default=10, help="Max views (default: 10)")
     p_views_list.add_argument("--pretty", action="store_true", help="Pretty print JSON")
     p_views_list.set_defaults(func=cmd_views_list)
+    
+    # =========================================================================
+    # Topology Subcommand
+    # =========================================================================
+    p_topology = subparsers.add_parser(
+        "topology",
+        help="Get service dependency graph",
+        description="""Get service topology/dependency graph from APM.
+
+Shows nodes (services) with health status and edges (dependencies).
+
+Examples:
+  dd-cli topology --env sandbox --hours 1 --pretty
+  dd-cli topology --env sandbox --service pricing --pretty""",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    p_topology.add_argument("--env", default="sandbox", help="Environment (default: sandbox)")
+    p_topology.add_argument("--hours", type=float, default=1, help="Hours back (default: 1)")
+    p_topology.add_argument("--service", help="Filter to specific service and neighbors")
+    p_topology.add_argument("--pretty", action="store_true", help="Pretty print JSON")
+    p_topology.set_defaults(func=cmd_topology)
     
     return parser
 

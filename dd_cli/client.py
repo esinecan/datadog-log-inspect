@@ -74,6 +74,13 @@ class DatadogWebLogs:
         response.raise_for_status()
         return response
     
+    def _get(self, path: str) -> requests.Response:
+        """GET request to Datadog API."""
+        url = f"{self.auth.base_url}{path}"
+        response = self.session.get(url)
+        response.raise_for_status()
+        return response
+    
     def _extract_cursor(self, resp_json: Dict[str, Any], 
                         response: requests.Response) -> Optional[str]:
         """Extract pagination cursor from response (multi-path)."""
@@ -584,6 +591,142 @@ class DatadogWebLogs:
             "time": {"from": from_ms, "to": to_ms},
         }
         return self._post("/api/ui/event-platform/query/field-value", body).json()
+    
+    # =========================================================================
+    # Service Map / Topology API Methods
+    # =========================================================================
+    
+    def get_service_topology(
+        self, 
+        env: str = "sandbox",
+        hours: float = 1,
+        service_filter: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Get service topology/dependency graph.
+        
+        Returns nodes (services) and edges (dependencies) with health status.
+        
+        Endpoint: /api/unstable/apm/entities/graph
+        
+        Args:
+            env: Environment filter (e.g., "sandbox", "production")
+            hours: Hours back to query (default: 1)
+            service_filter: Optional service name to filter graph around
+            
+        Returns:
+            {
+                "nodes": [{"service": "pricing", "health": "ok", "stats": {...}}, ...],
+                "edges": [{"from": "api", "to": "pricing", "operation": "..."}, ...]
+            }
+        """
+        import urllib.parse
+        
+        from_ms, to_ms = self._time_range_ms(hours)
+        
+        # Convert to Unix seconds (API expects seconds not milliseconds)
+        from_sec = int(from_ms / 1000)
+        to_sec = int(to_ms / 1000)
+        
+        # Step 1: Get nodes (services) from /entities
+        entities_params = {
+            "filter[env]": env,
+            "filter[from]": str(from_sec),
+            "filter[to]": str(to_sec),
+            "filter[columns]": "SERVICE_NAME,REQUESTS,REQUESTS_PER_SECOND,ERRORS,ERRORS_PERCENTAGE,LATENCY_AVG,LATENCY_P95",
+            "filter[entity.type.catalog.kind]": "service",
+            "order_by_col": "REQUESTS",
+            "order_by_desc": "true",
+            "source": "web-ui",
+            "page[size]": "1000",  # Get all services
+            "page[number]": "0",
+            "include": "entity.service_health",
+        }
+        
+        entities_url = f"/api/unstable/apm/entities?{urllib.parse.urlencode(entities_params)}"
+        entities_resp = self._get(entities_url)
+        entities_data = entities_resp.json()
+        
+        # Step 2: Get edges from /entities/graph
+        graph_params = {
+            "filter[env]": env,
+            "filter[from]": str(from_sec),
+            "filter[to]": str(to_sec),
+            "filter[columns]": "OPERATION_NAME,REQUESTS_PER_SECOND,LATENCY_AVG,ERRORS_PERCENTAGE",
+            "source": "web-ui",
+            "datastore": "metrics",
+            "page[size]": "0",
+            "return_legacy_fields": "false",
+            "include": "entity.service_health",
+            "filter[metadata]": "color",
+            "graph.hide_service_overrides": "false",
+        }
+        
+        graph_url = f"/api/unstable/apm/entities/graph?{urllib.parse.urlencode(graph_params)}"
+        graph_resp = self._get(graph_url)
+        graph_data = graph_resp.json()
+        
+        # Parse nodes from entities response
+        nodes = []
+        node_id_to_service = {}
+        
+        for item in entities_data.get("data", []):
+            if item.get("type") == "apm-entity":
+                attrs = item.get("attributes", {})
+                id_tags = attrs.get("id_tags", {})
+                service_name = id_tags.get("service", "unknown")
+                node_id_to_service[item["id"]] = service_name
+                
+                # Extract health and stats
+                health_info = attrs.get("service_health", {})
+                stats_info = attrs.get("stats", {})
+                
+                nodes.append({
+                    "service": service_name,
+                    "health": health_info.get("status", "unknown"),
+                    "stats": {
+                        "requests_per_second": stats_info.get("requests_per_second"),
+                        "latency_avg": stats_info.get("latency_avg"),
+                        "latency_p95": stats_info.get("latency_p95"),
+                        "errors_percentage": stats_info.get("errors_percentage"),
+                    },
+                })
+        
+        # Parse edges from graph response
+        edges = []
+        for item in graph_data.get("data", []):
+            if item.get("type") == "apm-entity-edge":
+                attrs = item.get("attributes", {})
+                rels = item.get("relationships", {})
+                
+                source_data = rels.get("source", {}).get("data", {})
+                target_data = rels.get("target", {}).get("data", {})
+                
+                source_id = source_data.get("id")
+                target_id = target_data.get("id")
+                
+                if source_id and target_id:
+                    edges.append({
+                        "from": node_id_to_service.get(source_id, source_id),
+                        "to": node_id_to_service.get(target_id, target_id),
+                        "operation": attrs.get("operation", ""),
+                        "span_kind": attrs.get("span.kind", ""),
+                    })
+        
+        # Optional: filter to specific service and its neighbors
+        if service_filter:
+            # Keep only nodes connected to service_filter
+            connected_services = {service_filter}
+            for edge in edges:
+                if edge["from"] == service_filter:
+                    connected_services.add(edge["to"])
+                elif edge["to"] == service_filter:
+                    connected_services.add(edge["from"])
+            
+            nodes = [n for n in nodes if n["service"] in connected_services]
+            edges = [e for e in edges if e["from"] in connected_services or e["to"] in connected_services]
+        
+        return {"nodes": nodes, "edges": edges}
     
     # =========================================================================
     # Watchdog Insights API Methods

@@ -67,6 +67,19 @@ export const TOOLS: Tool[] = [
             required: ["query"],
         },
     },
+    {
+        name: "dd_get_topology",
+        description: "Get service dependency graph/topology. Use for: finding downstream dependencies, identifying services in ALERT state, root cause analysis across microservices.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                env: { type: "string", description: "Environment filter (e.g., 'sandbox', 'production') (default: sandbox)", default: "sandbox" },
+                hours: { type: "number", description: "Hours back (default: 1)", default: 1 },
+                service: { type: "string", description: "Optional: Filter to specific service and its neighbors" },
+            },
+            required: [],
+        },
+    },
     // =============================================================================
     // RUM (Real User Monitoring) Tools
     // =============================================================================
@@ -273,6 +286,20 @@ export async function handleToolCall(
                 "--hours", String(hours),
                 "--limit", String(limit),
             ]);
+        }
+
+        case "dd_get_topology": {
+            const env = (args.env as string) || "sandbox";
+            const hours = (args.hours as number) || 1;
+            const cliArgs = [
+                "topology",
+                "--env", env,
+                "--hours", String(hours),
+            ];
+            if (args.service) {
+                cliArgs.push("--service", args.service as string);
+            }
+            return execDdCliJson(cliArgs);
         }
 
         // =====================================================================
