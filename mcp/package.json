@@ -13,6 +13,21 @@
         "start": "node dist/mcp/server.js",
         "inspector": "npx @modelcontextprotocol/inspector node dist/mcp/server.js"
     },
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/yourusername/datadog-log-inspect.git"
+    },
+    "keywords": [
+        "datadog",
+        "mcp",
+        "logs",
+        "rum",
+        "debugging",
+        "model-context-protocol",
+        "claude",
+        "ai-assistant"
+    ],
+    "license": "MIT",
     "dependencies": {
         "@modelcontextprotocol/sdk": "^1.0.4"
     },

@@ -1,0 +1,12 @@
+{
+    "mcpServers": {
+        "datadog-log-inspect": {
+            "command": "node",
+            "args": [
+                "/ABSOLUTE/PATH/TO/datadog-log-inspect/mcp/dist/mcp/server.js"
+            ],
+            "disabled": false,
+            "alwaysAllow": []
+        }
+    }
+}

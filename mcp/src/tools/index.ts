@@ -135,36 +135,8 @@ export const TOOLS: Tool[] = [
             required: ["query"],
         },
     },
-    // =============================================================================
-    // Field Discovery Tools
-    // =============================================================================
-    {
-        name: "dd_fields_search",
-        description: "[BROKEN - API returns 400] Search available field names by keyword. WORKAROUND: Use dd_top_values instead to discover field values.",
-        inputSchema: {
-            type: "object",
-            properties: {
-                keyword: { type: "string", description: "Partial field name to search (e.g., 'usr', 'shipment', 'customer')" },
-                source: { type: "string", enum: ["logs", "rum"], description: "Data source (default: logs)", default: "logs" },
-            },
-            required: ["keyword"],
-        },
-    },
-    {
-        name: "dd_fields_values",
-        description: "[BROKEN - API returns 400] Get autocomplete values for a field. WORKAROUND: Use dd_top_values with the field parameter instead.",
-        inputSchema: {
-            type: "object",
-            properties: {
-                field: { type: "string", description: "Field path (e.g., '@usr.id', 'service', '@shipment.id')" },
-                query: { type: "string", description: "Optional filter query to narrow values" },
-                source: { type: "string", enum: ["logs", "rum"], description: "Data source (default: logs)", default: "logs" },
-                hours: { type: "number", description: "Hours back (default: 24)", default: 24 },
-            },
-            required: ["field"],
-        },
-    },
 ];
+
 
 interface LogEvent {
     timestamp?: string;
@@ -356,37 +328,6 @@ export async function handleToolCall(
                 "--limit", String(limit),
             ]);
             return simplifyLogs(result);
-        }
-
-        // =====================================================================
-        // Field Discovery Handlers
-        // =====================================================================
-
-        case "dd_fields_search": {
-            const keyword = args.keyword as string;
-            const source = (args.source as string) || "logs";
-            return execDdCliJson([
-                "fields", "search",
-                keyword,
-                "--source", source,
-            ]);
-        }
-
-        case "dd_fields_values": {
-            const field = args.field as string;
-            const source = (args.source as string) || "logs";
-            const hours = (args.hours as number) || 24;
-            const cliArgs = [
-                "fields", "values",
-                field,
-                "--source", source,
-                "--hours", String(hours),
-            ];
-            // Add optional query filter if provided
-            if (args.query) {
-                cliArgs.push("--query", args.query as string);
-            }
-            return execDdCliJson(cliArgs);
         }
 
         default:

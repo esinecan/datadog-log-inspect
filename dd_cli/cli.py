@@ -7,15 +7,12 @@ Usage:
     dd-cli list 'service:pricing status:error' --hours 24 --limit 100
     dd-cli fetch-all 'S1234567' --hours 48 --max 500
     dd-cli trace <trace_id> --hours 24
+    dd-cli top 'status:error' --field service --hours 24
     
     # RUM (Real User Monitoring)  
     dd-cli rum sessions 'C-13947' --hours 48
     dd-cli rum actions '"retrieve rates"' --hours 24
     dd-cli rum errors '@usr.id:alice@example.com' --limit 50
-    
-    # Field Exploration
-    dd-cli fields search 'usr' --source rum
-    dd-cli fields values '@usr.id' --source rum
     
     # Watchdog & Views
     dd-cli watchdog 'status:error' --hours 24
@@ -243,23 +240,6 @@ def cmd_rum_top(args):
     emit_json(result, compact=not args.pretty)
 
 
-# =============================================================================
-# Field Exploration Command Handlers
-# =============================================================================
-
-def cmd_fields_search(args):
-    """Search available fields."""
-    client = require_auth()
-    result = client.search_fields(args.keyword, DataSource(args.source))
-    emit_json(result, compact=not args.pretty)
-
-
-def cmd_fields_values(args):
-    """Get field values (autocomplete)."""
-    client = require_auth()
-    result = client.field_values(args.field, args.query or "*", DataSource(args.source), args.hours)
-    emit_json(result, compact=not args.pretty)
-
 
 # =============================================================================
 # Watchdog & Views Command Handlers
@@ -452,41 +432,6 @@ See also: dd-cli list (backend logs), dd-cli fields (explore schema)""",
     p_rum_top.add_argument("--limit", type=int, default=10, help="Top N (default: 10)")
     p_rum_top.add_argument("--pretty", action="store_true", help="Pretty print JSON")
     p_rum_top.set_defaults(func=cmd_rum_top)
-    
-    # =========================================================================
-    # Fields Subcommand Group
-    # =========================================================================
-    p_fields = subparsers.add_parser(
-        "fields",
-        help="Explore available fields (autocomplete)",
-        description="""Explore field schema and values for logs or RUM.
-
-Useful for discovering available search fields and their values.
-
-Examples:
-  dd-cli fields search 'usr' --source rum
-  dd-cli fields values '@usr.id' --source rum --hours 24""",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-    )
-    fields_subs = p_fields.add_subparsers(dest="fields_command", required=True)
-    
-    # fields search
-    p_fields_search = fields_subs.add_parser("search", help="Search field names by keyword")
-    p_fields_search.add_argument("keyword", help="Partial field name (e.g., 'usr' → @usr.id)")
-    p_fields_search.add_argument("--source", choices=["logs", "rum"], default="logs",
-                                  help="Data source (default: logs)")
-    p_fields_search.add_argument("--pretty", action="store_true", help="Pretty print JSON")
-    p_fields_search.set_defaults(func=cmd_fields_search)
-    
-    # fields values
-    p_fields_values = fields_subs.add_parser("values", help="Get values for a field (autocomplete)")
-    p_fields_values.add_argument("field", help="Field path (e.g., '@usr.id', 'service')")
-    p_fields_values.add_argument("--query", help="Optional filter query")
-    p_fields_values.add_argument("--source", choices=["logs", "rum"], default="logs",
-                                  help="Data source (default: logs)")
-    p_fields_values.add_argument("--hours", type=float, default=24, help="Hours back (default: 24)")
-    p_fields_values.add_argument("--pretty", action="store_true", help="Pretty print JSON")
-    p_fields_values.set_defaults(func=cmd_fields_values)
     
     # =========================================================================
     # Watchdog Subcommand
