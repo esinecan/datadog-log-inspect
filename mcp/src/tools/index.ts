@@ -43,14 +43,13 @@ export const TOOLS: Tool[] = [
     },
     {
         name: "dd_fetch_log",
-        description: "Fetch full details of a single log entry. Use log_id + source_fragment_id from search results.",
+        description: "Fetch full details of a single log entry including request bodies and custom metadata. Use compound_id from dd_search_logs or dd_trace_logs results.",
         inputSchema: {
             type: "object",
             properties: {
-                log_id: { type: "string", description: "The log ID from a previous search" },
-                source_fragment_id: { type: "string", description: "The source_fragment_id from a previous search (required for fetch to work)" },
+                compound_id: { type: "string", description: "The compound_id from a previous search result (AwAAA... base64 string)" },
             },
-            required: ["log_id", "source_fragment_id"],
+            required: ["compound_id"],
         },
     },
     {
@@ -146,6 +145,8 @@ interface LogEvent {
     trace_id?: string;
     id?: string;
     source_fragment_id?: string;
+    compound_id?: string;
+    custom?: unknown;
 }
 
 interface LogResult {
@@ -154,7 +155,7 @@ interface LogResult {
     };
 }
 
-function simplifyLogEvent(event: Record<string, unknown>): LogEvent {
+function simplifyLogEvent(event: Record<string, unknown>, compoundId?: string): LogEvent {
     return {
         timestamp: event.timestamp as string,
         service: event.service as string,
@@ -163,12 +164,19 @@ function simplifyLogEvent(event: Record<string, unknown>): LogEvent {
         trace_id: event.trace_id as string,
         id: event.id as string,
         source_fragment_id: event.source_fragment_id as string,
+        compound_id: compoundId,
+        custom: event.custom,
     };
 }
 
 function simplifyLogs(result: LogResult): { count: number; events: LogEvent[] } {
     const events = result.result?.events || [];
-    const simplified = events.map((e) => simplifyLogEvent(e.event as any || {}));
+    const simplified = events.map((e) => {
+        const raw = e as unknown as Record<string, unknown>;
+        // compound_id is the top-level `id` on each list event; used for dd_fetch_log
+        const compoundId = raw.id as string | undefined;
+        return simplifyLogEvent(raw.event as Record<string, unknown> || {}, compoundId);
+    });
     return { count: simplified.length, events: simplified };
 }
 
@@ -223,26 +231,9 @@ export async function handleToolCall(
         }
 
         case "dd_fetch_log": {
-            const logId = args.log_id as string;
-            const sourceFragmentId = args.source_fragment_id as string;
-
-            // Build compound ID from event_id + source_fragment_id
-            // Extract just the UUID from source_fragment_id (before any "-synthetic" suffix)
-            const uuid = sourceFragmentId.split("-synthetic")[0];
-
-            // Build compound ID structure (reverse-engineered from Datadog web UI):
-            // header + length byte + event_id + separator with '$' + uuid + trailer
-            const header = Buffer.from([0x03, 0x00, 0x00, 0x01, 0x9b, 0x9e, 0x1e, 0x99, 0x2a, 0x5f, 0x80, 0x4b, 0xef, 0x00, 0x00, 0x00]);
-            const eventIdLen = Buffer.from([logId.length]);
-            const eventIdBuf = Buffer.from(logId, "ascii");
-            const separator = Buffer.from([0x00, 0x00, 0x00, 0x24]); // 0x24 = '$'
-            const uuidBuf = Buffer.from(uuid, "ascii");
-            const trailer = Buffer.from([0x00, 0x0d, 0x16, 0x99]);
-
-            const compoundId = Buffer.concat([header, eventIdLen, eventIdBuf, separator, uuidBuf, trailer]).toString("base64").replace(/=/g, "");
-
+            // compound_id is the `compound_id` field from dd_search_logs / dd_trace_logs results
+            const compoundId = args.compound_id as string;
             const result = await execDdCliJson<{ result?: Record<string, unknown> }>(["fetch-one", compoundId]);
-            // Return full result (user wants all details including errorDetails, custom fields, etc.)
             return result;
         }
 
